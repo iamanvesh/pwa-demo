@@ -124,20 +124,52 @@
     }
   }
 
-  gateUnlock.addEventListener('click', async () => {
+  async function doUnlock() {
     gateUnlock.disabled = true;
     try {
       await authenticate();
       reveal();
+      return true;
     } catch (e) {
-      gateText.textContent = 'Unlock failed: ' + (e?.message || e);
+      gateText.textContent = 'Unlock failed: ' + (e?.message || e) + ' — tap to retry.';
+      return false;
     } finally {
       gateUnlock.disabled = false;
     }
-  });
+  }
 
-  if (isUnlocked()) reveal();
-  else showGate();
+  gateUnlock.addEventListener('click', (e) => { e.stopPropagation(); doUnlock(); });
+
+  // Fire the passkey prompt on the first interaction when the browser blocks
+  // an automatic (gesture-less) invocation.
+  let armed = false;
+  function armFirstTap() {
+    if (armed) return;
+    armed = true;
+    const fire = () => {
+      document.removeEventListener('pointerdown', fire);
+      document.removeEventListener('keydown', fire);
+      doUnlock();
+    };
+    document.addEventListener('pointerdown', fire, { once: true });
+    document.addEventListener('keydown', fire, { once: true });
+  }
+
+  async function start() {
+    if (isUnlocked()) { reveal(); return; }
+    showGate();
+    if (!supported() || !hasPasskey()) return; // gate explains the next step
+    // Try to pop the passkey prompt immediately. Most browsers require a user
+    // gesture for WebAuthn, so fall back to firing on the first tap.
+    try {
+      await authenticate();
+      reveal();
+    } catch {
+      armFirstTap();
+    }
+  }
+
+  start();
 </script>
 </body>
 </html>
