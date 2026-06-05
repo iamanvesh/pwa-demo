@@ -43,12 +43,17 @@
   .card code{display:block;font-family:'Courier New',monospace;font-size:13px;
     color:var(--ink);word-break:break-all;background:#0a1521;border:1px solid var(--line);
     padding:12px;border-radius:8px;margin-top:6px}
-  a.btn{
-    display:block;text-align:center;text-decoration:none;
+  a.btn,button.btn{
+    display:block;width:100%;text-align:center;text-decoration:none;cursor:pointer;
     font-family:'Courier New',monospace;letter-spacing:.1em;text-transform:uppercase;
     font-size:14px;background:var(--gold);color:#0a1521;font-weight:bold;
-    padding:16px;border-radius:12px;margin-top:24px;
+    padding:16px;border-radius:12px;margin-top:24px;border:0;
   }
+  button.btn[disabled]{opacity:.5;cursor:default}
+  .install-card{display:none}
+  .install-card.show{display:block}
+  .install-hint{color:var(--muted);font-size:15px;line-height:1.6}
+  .install-hint b{color:var(--ink)}
   .mode{font-family:'Courier New',monospace;font-size:13px;color:var(--muted);margin-top:30px;text-align:center}
   .mode b{color:var(--gold)}
 </style>
@@ -63,6 +68,12 @@
       <h2>Deep link target</h2>
       <code id="deeplink">…</code>
       <a class="btn" href="profile.html?id=42&utm=test">Go to /profile (in-app)</a>
+    </div>
+
+    <div class="card install-card" id="installCard">
+      <h2>Install this app</h2>
+      <p class="install-hint" id="installHint">Tap below to add DeepLink to your home screen.</p>
+      <button class="btn" id="installBtn">Install app</button>
     </div>
 
     <div class="card">
@@ -84,6 +95,49 @@
   document.getElementById('mode').innerHTML = standalone
     ? 'Running as <b>installed PWA</b> ✓'
     : 'Running in <b>browser tab</b>';
+
+  // ---- Install prompt handling ----
+  const installCard = document.getElementById('installCard');
+  const installBtn  = document.getElementById('installBtn');
+  const installHint = document.getElementById('installHint');
+
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  let deferredPrompt = null;
+
+  // Chrome/Edge/Android: the browser hands us the prompt instead of auto-showing it.
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();          // stop the default mini-infobar
+    deferredPrompt = e;
+    installBtn.style.display = 'block';
+    installBtn.disabled = false;
+    installHint.textContent = 'Tap below to add DeepLink to your home screen.';
+    installCard.classList.add('show');
+  });
+
+  installBtn.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    installBtn.disabled = true;
+    installHint.textContent = outcome === 'accepted'
+      ? 'Installing…'
+      : 'Install dismissed. Use the browser menu to install later.';
+  });
+
+  window.addEventListener('appinstalled', () => {
+    installHint.textContent = 'Installed ✓ — open it from your home screen.';
+    installBtn.style.display = 'none';
+  });
+
+  // iOS Safari never fires beforeinstallprompt — guide the user manually.
+  if (isIOS && !standalone) {
+    installBtn.style.display = 'none';
+    installHint.innerHTML = 'On iOS: tap the <b>Share</b> icon, then <b>Add to Home Screen</b>.';
+    installCard.classList.add('show');
+  }
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
