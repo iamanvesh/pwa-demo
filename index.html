@@ -105,6 +105,33 @@
                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   let deferredPrompt = null;
+  let autoArmed = false;
+
+  async function showInstallDialog() {
+    if (!deferredPrompt) return;
+    const p = deferredPrompt;
+    deferredPrompt = null;       // prompt() may only be used once
+    p.prompt();
+    const { outcome } = await p.userChoice;
+    installBtn.disabled = true;
+    installHint.textContent = outcome === 'accepted'
+      ? 'Installing…'
+      : 'Install dismissed. Use the browser menu to install later.';
+  }
+
+  // Browsers require prompt() to run inside a user gesture — a fully automatic
+  // popup is not allowed. Next best thing: fire it on the FIRST tap anywhere.
+  function armAutoPrompt() {
+    if (autoArmed) return;
+    autoArmed = true;
+    const fire = () => {
+      document.removeEventListener('pointerdown', fire);
+      document.removeEventListener('keydown', fire);
+      showInstallDialog();
+    };
+    document.addEventListener('pointerdown', fire, { once: true });
+    document.addEventListener('keydown', fire, { once: true });
+  }
 
   // Chrome/Edge/Android: the browser hands us the prompt instead of auto-showing it.
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -112,19 +139,14 @@
     deferredPrompt = e;
     installBtn.style.display = 'block';
     installBtn.disabled = false;
-    installHint.textContent = 'Tap below to add DeepLink to your home screen.';
+    installHint.textContent = 'Tap anywhere to install DeepLink to your home screen.';
     installCard.classList.add('show');
+    armAutoPrompt();             // pop the native dialog on the user's first tap
   });
 
-  installBtn.addEventListener('click', async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    installBtn.disabled = true;
-    installHint.textContent = outcome === 'accepted'
-      ? 'Installing…'
-      : 'Install dismissed. Use the browser menu to install later.';
+  installBtn.addEventListener('click', (e) => {
+    e.stopPropagation();         // don't double-fire via the document listener
+    showInstallDialog();
   });
 
   window.addEventListener('appinstalled', () => {

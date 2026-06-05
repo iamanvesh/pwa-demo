@@ -1,4 +1,4 @@
-const CACHE = 'deeplink-pwa-v2';
+const CACHE = 'deeplink-pwa-v3';
 const ASSETS = [
   './',
   './index.html',
