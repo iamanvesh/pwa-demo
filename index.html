@@ -70,6 +70,13 @@
       <a class="btn" href="profile.html?id=42&utm=test">Go to /profile (in-app)</a>
     </div>
 
+    <div class="card">
+      <h2>Biometric login (passkey)</h2>
+      <p class="install-hint" id="authStatus">Checking passkey support…</p>
+      <button class="btn" id="registerBtn" style="display:none">Create passkey</button>
+      <button class="btn" id="unlockBtn" style="display:none">Unlock with biometrics</button>
+    </div>
+
     <div class="card install-card" id="installCard">
       <h2>Install this app</h2>
       <p class="install-hint" id="installHint">Tap below to add DeepLink to your home screen.</p>
@@ -89,7 +96,7 @@
   </div>
 
 <script>
-  const VERSION = 'v4';
+  const VERSION = 'v5';
   document.getElementById('version').innerHTML = 'Build <b>' + VERSION + '</b>';
 
   const base = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -169,5 +176,6 @@
     navigator.serviceWorker.register('sw.js');
   }
 </script>
+<script type="module" src="auth.js"></script>
 </body>
 </html>
