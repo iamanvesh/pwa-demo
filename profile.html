@@ -35,6 +35,17 @@
     font-family:'Courier New',monospace;font-size:14px}
   .row span:first-child{color:var(--muted)}
   .row span:last-child{color:var(--ink);text-align:right;word-break:break-all;max-width:60%}
+  .card{border:1px solid var(--line);border-radius:16px;padding:22px;margin:28px 0;
+    background:linear-gradient(180deg,#11243640,#0d1b2a);}
+  .card h2{font-size:13px;font-family:'Courier New',monospace;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--gold);margin-bottom:10px}
+  .card p{color:var(--muted);font-size:15px;line-height:1.6}
+  button.btn,a.btn{display:block;width:100%;text-align:center;text-decoration:none;cursor:pointer;
+    font-family:'Courier New',monospace;letter-spacing:.1em;text-transform:uppercase;
+    font-size:14px;background:var(--gold);color:#0a1521;font-weight:bold;
+    padding:16px;border-radius:12px;margin-top:24px;border:0;}
+  button.btn[disabled]{opacity:.5;cursor:default}
+  .hidden{display:none}
 </style>
 </head>
 <body>
@@ -42,36 +53,91 @@
     <a class="back" href="index.html">&larr; HOME</a>
     <h1>Profile <em>page</em></h1>
 
-    <div id="status" class="status"><span class="dot"></span><span id="statusText">…</span></div>
+    <!-- Lock gate: shown until the session is unlocked with a passkey. -->
+    <div id="gate" class="card hidden">
+      <h2>🔒 Locked</h2>
+      <p id="gateText">This deep link is protected. Unlock with your passkey to continue.</p>
+      <button class="btn" id="gateUnlock">Unlock with biometrics</button>
+      <a class="btn hidden" id="gateSetup" href="index.html">Set up a passkey on Home</a>
+    </div>
 
-    <div class="row"><span>Path</span><span id="path"></span></div>
-    <div class="row"><span>Query: id</span><span id="qid"></span></div>
-    <div class="row"><span>Query: utm</span><span id="qutm"></span></div>
-    <div class="row"><span>display-mode</span><span id="dm"></span></div>
-    <div class="row"><span>navigator.standalone</span><span id="ns"></span></div>
-    <div class="row"><span>referrer</span><span id="ref"></span></div>
+    <!-- Protected content: revealed only after unlock. -->
+    <div id="content" class="hidden">
+      <div id="status" class="status"><span class="dot"></span><span id="statusText">…</span></div>
+      <div class="row"><span>Path</span><span id="path"></span></div>
+      <div class="row"><span>Query: id</span><span id="qid"></span></div>
+      <div class="row"><span>Query: utm</span><span id="qutm"></span></div>
+      <div class="row"><span>display-mode</span><span id="dm"></span></div>
+      <div class="row"><span>navigator.standalone</span><span id="ns"></span></div>
+      <div class="row"><span>referrer</span><span id="ref"></span></div>
+    </div>
   </div>
 
 <script>
-  const p = new URLSearchParams(location.search);
-  document.getElementById('path').textContent = location.pathname;
-  document.getElementById('qid').textContent = p.get('id') || '—';
-  document.getElementById('qutm').textContent = p.get('utm') || '—';
-
-  const standalone = window.matchMedia('(display-mode: standalone)').matches;
-  const iosStandalone = window.navigator.standalone === true;
-  const inApp = standalone || iosStandalone;
-
-  document.getElementById('dm').textContent = standalone ? 'standalone' : 'browser';
-  document.getElementById('ns').textContent = String(iosStandalone);
-  document.getElementById('ref').textContent = document.referrer || '—';
-
-  const s = document.getElementById('status');
-  const t = document.getElementById('statusText');
-  if (inApp) { s.className = 'status ok'; t.textContent = 'OPENED INSIDE INSTALLED PWA'; }
-  else { s.className = 'status warn'; t.textContent = 'OPENED IN BROWSER (not the PWA)'; }
-
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+<script type="module">
+  import { supported, hasPasskey, isUnlocked, authenticate } from './passkey.js';
+
+  const gate = document.getElementById('gate');
+  const gateText = document.getElementById('gateText');
+  const gateUnlock = document.getElementById('gateUnlock');
+  const gateSetup = document.getElementById('gateSetup');
+  const content = document.getElementById('content');
+
+  function render() {
+    const p = new URLSearchParams(location.search);
+    document.getElementById('path').textContent = location.pathname;
+    document.getElementById('qid').textContent = p.get('id') || '—';
+    document.getElementById('qutm').textContent = p.get('utm') || '—';
+
+    const standalone = window.matchMedia('(display-mode: standalone)').matches;
+    const iosStandalone = window.navigator.standalone === true;
+    const inApp = standalone || iosStandalone;
+
+    document.getElementById('dm').textContent = standalone ? 'standalone' : 'browser';
+    document.getElementById('ns').textContent = String(iosStandalone);
+    document.getElementById('ref').textContent = document.referrer || '—';
+
+    const s = document.getElementById('status');
+    const t = document.getElementById('statusText');
+    if (inApp) { s.className = 'status ok'; t.textContent = 'OPENED INSIDE INSTALLED PWA'; }
+    else { s.className = 'status warn'; t.textContent = 'OPENED IN BROWSER (not the PWA)'; }
+  }
+
+  function reveal() {
+    gate.classList.add('hidden');
+    content.classList.remove('hidden');
+    render();
+  }
+
+  function showGate() {
+    content.classList.add('hidden');
+    gate.classList.remove('hidden');
+    if (!supported()) {
+      gateText.textContent = 'Passkeys are not supported on this browser, so this page cannot be unlocked here.';
+      gateUnlock.classList.add('hidden');
+    } else if (!hasPasskey()) {
+      gateText.textContent = 'No passkey found on this device. Set one up on the Home page first, then return to this link.';
+      gateUnlock.classList.add('hidden');
+      gateSetup.classList.remove('hidden');
+    }
+  }
+
+  gateUnlock.addEventListener('click', async () => {
+    gateUnlock.disabled = true;
+    try {
+      await authenticate();
+      reveal();
+    } catch (e) {
+      gateText.textContent = 'Unlock failed: ' + (e?.message || e);
+    } finally {
+      gateUnlock.disabled = false;
+    }
+  });
+
+  if (isUnlocked()) reveal();
+  else showGate();
 </script>
 </body>
 </html>

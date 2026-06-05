@@ -1,10 +1,11 @@
-const CACHE = 'deeplink-pwa-v5';
+const CACHE = 'deeplink-pwa-v6';
 const ASSETS = [
   './',
   './index.html',
   './profile.html',
   './secure.html',
   './auth.js',
+  './passkey.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png'
