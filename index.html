@@ -85,9 +85,13 @@
     </div>
 
     <div class="mode" id="mode">checking display mode…</div>
+    <div class="mode" id="version" style="margin-top:8px"></div>
   </div>
 
 <script>
+  const VERSION = 'v4';
+  document.getElementById('version').innerHTML = 'Build <b>' + VERSION + '</b>';
+
   const base = location.origin + location.pathname.replace(/index\.html$/, '');
   document.getElementById('deeplink').textContent = base + 'profile.html?id=42&utm=test';
 

@@ -1,4 +1,4 @@
-const CACHE = 'deeplink-pwa-v3';
+const CACHE = 'deeplink-pwa-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -24,6 +24,22 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+
+  // Network-first for page navigations so the latest HTML always wins when
+  // online; fall back to cache offline. Other assets stay cache-first.
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy));
+          return res;
+        })
+        .catch(() => caches.match(e.request).then((c) => c || caches.match('./index.html')))
+    );
+    return;
+  }
+
   e.respondWith(
     caches.match(e.request).then((cached) => cached || fetch(e.request).catch(() => caches.match('./index.html')))
   );
